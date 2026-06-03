@@ -1,0 +1,1306 @@
+<!--
+  Copyright (c) 2026 Alan Miller
+  Released under the MIT License
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relationshapez: Rigid Motion</title>
+<style>
+  :root{
+    --gw-blue:#033C5A;
+    --gw-buff:#D6BF91;
+    --gw-buff-dark:#AA9868;
+    --ink:#10212d;
+    --paper:#fbfaf7;
+    --panel:#ffffff;
+    --line:#d8d0c0;
+    --solution:#c43b59;
+    --given:#256f94;
+    --image:#7FBAE3;
+    --shadow:0 10px 26px rgba(3,60,90,.16);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;overflow:hidden;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  body{display:flex;align-items:stretch;justify-content:center;}
+  .app{width:min(100vw,980px);height:100dvh;display:flex;flex-direction:column;background:var(--paper);}
+  header{background:var(--gw-blue);color:white;padding:8px 12px;box-shadow:var(--shadow);z-index:3;}
+  .tabs{display:flex;gap:8px;}
+  .tab{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:white;border-radius:999px;padding:8px 13px;font-weight:750;font-size:.94rem;cursor:pointer;min-width:92px;}
+  .tab.active{background:var(--gw-buff);color:var(--gw-blue);border-color:var(--gw-buff);}
+  main{flex:1;min-height:0;display:flex;flex-direction:column;}
+  .panel{display:none;flex:1;min-height:0;padding:12px;}
+  .panel.active{display:flex;}
+  .settings.panel.active{display:grid;}
+  .settings{overflow:auto;align-content:flex-start;gap:12px;grid-template-columns:1fr;}
+  .card{background:var(--panel);border:1px solid #eadfca;border-radius:18px;padding:13px;box-shadow:0 4px 15px rgba(3,60,90,.08);}
+  .card h2{font-size:.94rem;color:var(--gw-blue);margin:0 0 8px;font-weight:850;}
+  .seg{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;}
+  .seg.five{grid-template-columns:repeat(2,1fr);}
+  button,.choice,label.switch{font:inherit;}
+  .choice{border:1px solid #d8cab0;background:#fff;border-radius:13px;padding:10px 8px;font-weight:760;color:var(--gw-blue);cursor:pointer;text-align:center;}
+  .choice.active{background:var(--gw-blue);color:#fff;border-color:var(--gw-blue);}
+  .choice.wide{grid-column:1/-1;}
+  .checkrow{display:flex;align-items:center;gap:10px;font-weight:760;color:var(--gw-blue);padding:10px 2px;}
+  input[type="checkbox"]{width:22px;height:22px;accent-color:var(--gw-blue);}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{border:0;background:var(--gw-blue);color:white;border-radius:13px;padding:10px 13px;font-weight:850;cursor:pointer;box-shadow:0 3px 8px rgba(3,60,90,.14);}
+  .btn.secondary{background:var(--gw-buff);color:var(--gw-blue);}
+  .btn.ghost{background:#fff;color:var(--gw-blue);border:1px solid #d8cab0;box-shadow:none;}
+  .canvas-panel{padding:0;background:#fff;position:relative;overflow:hidden;}
+  .toolbar{position:absolute;left:10px;right:10px;top:10px;display:flex;gap:7px;align-items:center;z-index:4;flex-wrap:wrap;pointer-events:none;}
+  .toolbar > *{pointer-events:auto;}
+  .tool{border:1px solid rgba(3,60,90,.2);background:rgba(255,255,255,.92);color:var(--gw-blue);border-radius:999px;padding:8px 10px;font-weight:800;font-size:.86rem;box-shadow:0 2px 8px rgba(3,60,90,.08);}
+  .tool.active{background:var(--gw-blue);color:white;}
+  .swatch{width:34px;height:34px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(3,60,90,.35),0 2px 7px rgba(0,0,0,.15);cursor:pointer;}
+  .swatch.active{box-shadow:0 0 0 3px var(--gw-buff-dark),0 2px 7px rgba(0,0,0,.15);}
+  canvas{width:100%;height:100%;display:block;touch-action:none;background:#fff;}
+  .badge{position:absolute;left:10px;right:10px;bottom:10px;z-index:3;display:flex;justify-content:center;pointer-events:none;}
+  .badge span{max-width:min(92vw,760px);background:rgba(255,255,255,.92);border:1px solid #e6d9c4;border-radius:999px;padding:8px 13px;color:var(--gw-blue);font-weight:800;font-size:.87rem;box-shadow:0 2px 12px rgba(3,60,90,.12);text-align:center;}
+  noscript{display:block;margin:1rem;padding:1rem;border:1px solid #d8cab0;border-radius:12px;background:#fff;color:var(--gw-blue);}
+  @media (max-width:720px){
+    .settings{grid-template-columns:1fr;padding-bottom:22px;}
+    header{padding-top:8px;}
+    .tab{padding:8px 11px;min-width:84px;}
+    .toolbar{gap:5px;}
+    .tool{font-size:.8rem;padding:7px 8px;}
+    .swatch{width:31px;height:31px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="canvas">Canvas</button>
+    </div>
+  </header>
+  <main>
+    <section id="settings" class="panel settings active">
+      <div class="card">
+        <h2>Problem</h2>
+        <div class="seg" data-setting="problem">
+          <button class="choice active" data-value="forward">Forward</button>
+          <button class="choice" data-value="backward">Backward</button>
+        </div>
+        <label class="checkrow"><input id="showSolution" type="checkbox">Display Solution</label>
+      </div>
+      <div class="card">
+        <h2>Grid</h2>
+        <div class="seg" data-setting="grid">
+          <button class="choice active" data-value="square">Square</button>
+          <button class="choice" data-value="triangle">Triangle</button>
+        </div>
+        <label class="checkrow"><input id="snapToGrid" type="checkbox" checked>Snap to Grid</label>
+      </div>
+      <div class="card">
+        <h2>Rigid Motion</h2>
+        <div class="seg five" data-setting="motion">
+          <button class="choice active" data-value="translation">Translation</button>
+          <button class="choice" data-value="reflection">Reflection</button>
+          <button class="choice" data-value="rotation">Rotation</button>
+          <button class="choice" data-value="transflection">Transflection</button>
+          <button class="choice wide" data-value="random">Random</button>
+        </div>
+      </div>
+    </section>
+    <section id="canvas" class="panel canvas-panel">
+      <div class="toolbar">
+        <button class="tool active" data-mode="pan">Drag</button>
+        <button class="tool" data-mode="draw">Draw</button>
+        <button class="tool" data-mode="erase">Erase</button>
+        <button class="tool" id="undoBtn">Undo</button>
+        <button class="tool" id="resetBtn">Reset</button>
+        <button class="tool" id="refreshBtn">New</button>
+        <button class="swatch active" title="Blue" data-color="#033C5A" style="background:#033C5A"></button>
+        <button class="swatch" title="Buff" data-color="#AA9868" style="background:#AA9868"></button>
+        <button class="swatch" title="Black" data-color="#111111" style="background:#111111"></button>
+        <button class="swatch" title="Red" data-color="#c43b59" style="background:#c43b59"></button>
+      </div>
+      <canvas id="board" aria-label="Rigid motion canvas"></canvas>
+    </section>
+  </main>
+</div>
+<noscript>This tool requires JavaScript to generate and draw rigid motion problems.</noscript>
+<script>
+(() => {
+  'use strict';
+
+  const BLUE = '#033C5A';
+  const BUFF = '#D6BF91';
+  const BUFF_DARK = '#AA9868';
+  const IMG = '#7FBAE3';
+  const SOL = '#c43b59';
+  const GRID = 42;
+  const SQRT3 = Math.sqrt(3);
+  const EPS = 1e-9;
+
+  const state = {
+    tab:'settings',
+    problem:'forward',
+    grid:'square',
+    motion:'translation',
+    actualMotion:'translation',
+    showSolution:false,
+    snapToGrid:true,
+    mode:'pan',
+    color:BLUE,
+    view:{x:0,y:0,scale:1},
+    strokes:[],
+    problemData:null,
+    pointer:null,
+    canvasSize:{w:0,h:0}
+  };
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const promptText = document.getElementById('promptText');
+
+  const rand = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+  const choice = arr => arr[Math.floor(Math.random()*arr.length)];
+  const round = n => Math.round(n*1000)/1000;
+  const dist = (p,q) => Math.hypot(p.x-q.x,p.y-q.y);
+  const mid = (p,q) => ({x:(p.x+q.x)/2,y:(p.y+q.y)/2});
+  const add = (p,q) => ({x:p.x+q.x,y:p.y+q.y});
+  const sub = (p,q) => ({x:p.x-q.x,y:p.y-q.y});
+  const mul = (p,t) => ({x:p.x*t,y:p.y*t});
+  const dot = (p,q) => p.x*q.x+p.y*q.y;
+  const perp = p => ({x:-p.y,y:p.x});
+  const normalize = p => {
+    const d = Math.hypot(p.x,p.y) || 1;
+    return {x:p.x/d,y:p.y/d};
+  };
+
+  function sqToWorld(p){ return {x:p.x*GRID,y:-p.y*GRID}; }
+  function triToWorld(p){ return {x:(p.u + 0.5*p.v)*GRID,y:-(SQRT3/2*p.v)*GRID}; }
+  function gridToWorld(p){ return state.grid === 'square' ? sqToWorld(p) : triToWorld(p); }
+
+  function triGridFromWorld(p){
+    const v = -2*p.y/(SQRT3*GRID);
+    const u = p.x/GRID - 0.5*v;
+    const q = {u:Math.round(u), v:Math.round(v)};
+    const w = triToWorld(q);
+    return Math.hypot(w.x-p.x,w.y-p.y) < 1e-6 ? q : null;
+  }
+
+  function reflectWorldAcrossLine(p,p0,dir){
+    const d = normalize(dir);
+    const v = sub(p,p0);
+    const foot = add(p0,mul(d,dot(v,d)));
+    return sub(mul(foot,2),p);
+  }
+
+  function lineSide(p,p0,dir){
+    return Math.sign((p.x-p0.x)*dir.y - (p.y-p0.y)*dir.x);
+  }
+
+
+  function rotateWorldMath(p,c,deg){
+    const rad = deg*Math.PI/180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const px = p.x - c.x;
+    const py = -p.y - (-c.y);
+    const rx = px*cos - py*sin;
+    const ry = px*sin + py*cos;
+    return {x:c.x + rx, y:-( (-c.y) + ry )};
+  }
+
+  function normDeg(a){
+    let x = a % 360;
+    if(x < 0) x += 360;
+    return x;
+  }
+
+  function isTriThirtyDirection(offset){
+    const w = triToWorld(offset);
+    const ang = normDeg(Math.atan2(-w.y, w.x) * 180 / Math.PI);
+    const nearest = Math.round(ang / 30) * 30;
+    const diff = Math.abs(normDeg(ang - nearest));
+    return Math.min(diff, 360-diff) < 1e-6;
+  }
+
+  function fmtGrid(p){
+    if(state.grid === 'square') return `(${p.x}, ${p.y})`;
+    return `⟨${p.u}, ${p.v}⟩`;
+  }
+
+  function worldToScreen(p){
+    return {x:state.canvasSize.w/2 + state.view.x + p.x*state.view.scale,
+            y:state.canvasSize.h/2 + state.view.y + p.y*state.view.scale};
+  }
+  function screenToWorld(p){
+    return {x:(p.x - state.canvasSize.w/2 - state.view.x)/state.view.scale,
+            y:(p.y - state.canvasSize.h/2 - state.view.y)/state.view.scale};
+  }
+
+  function worldToNearestGrid(p){
+    if(state.grid === 'square'){
+      return {x:Math.round(p.x/GRID), y:Math.round(-p.y/GRID)};
+    }
+    const v = -2*p.y/(SQRT3*GRID);
+    const u = p.x/GRID - 0.5*v;
+    return {u:Math.round(u), v:Math.round(v)};
+  }
+
+  function snapWorldPoint(p){
+    return gridToWorld(worldToNearestGrid(p));
+  }
+
+  function inputWorldPoint(screenPoint, useSnap){
+    const w = screenToWorld(screenPoint);
+    return useSnap ? snapWorldPoint(w) : w;
+  }
+
+  function transformSq(p, t){
+    if(t.type === 'translation') return {x:p.x+t.dx,y:p.y+t.dy};
+    if(t.type === 'reflection'){
+      if(t.axis === 'x') return {x:p.x,y:2*t.c-p.y};
+      if(t.axis === 'y') return {x:2*t.c-p.x,y:p.y};
+      if(t.axis === 'diag') return {x:p.y-t.c,y:p.x+t.c};       // y = x + c
+      if(t.axis === 'antidiag') return {x:-p.y+t.c,y:-p.x+t.c}; // y = -x + c
+      if(t.axis === 'line'){
+        const den = t.a*t.a + t.b*t.b;
+        const d = (t.a*p.x + t.b*p.y - t.c) / den;
+        return {x:p.x - 2*t.a*d, y:p.y - 2*t.b*d};
+      }
+    }
+    if(t.type === 'rotation'){
+      const x = p.x - t.cx, y = p.y - t.cy;
+      const k = ((t.deg%360)+360)%360;
+      if(k === 90) return {x:t.cx-y,y:t.cy+x};
+      if(k === 180) return {x:t.cx-x,y:t.cy-y};
+      if(k === 270) return {x:t.cx+y,y:t.cy-x};
+    }
+    if(t.type === 'transflection'){
+      const r = transformSq(p,{...t,type:'reflection'});
+      return {x:r.x+t.dx,y:r.y+t.dy};
+    }
+    return {...p};
+  }
+
+  function rotTri(p, c, steps){
+    let u = p.u - c.u, v = p.v - c.v;
+    let k = ((steps%6)+6)%6;
+    for(let i=0;i<k;i++){
+      const nu = -v;
+      const nv = u + v;
+      u = nu; v = nv;
+    }
+    return {u:u+c.u,v:v+c.v};
+  }
+
+  function transformTri(p,t){
+    if(t.type === 'translation') return {u:p.u+t.du,v:p.v+t.dv};
+    if(t.type === 'reflection'){
+      const c = t.c;
+      if(t.axis === 'u') return {u:2*c-p.u,v:p.v};
+      if(t.axis === 'v') return {u:p.u,v:2*c-p.v};
+      if(t.axis === 'uv') return {u:c-p.v,v:c-p.u}; // u + v = c
+      if(t.axis === 'triLine'){
+        const reflected = reflectWorldAcrossLine(triToWorld(p),t.p0,t.dir);
+        return triGridFromWorld(reflected) || {...p};
+      }
+    }
+    if(t.type === 'rotation') return rotTri(p,{u:t.cu,v:t.cv},t.steps);
+    if(t.type === 'transflection'){
+      const r = transformTri(p,{...t,type:'reflection'});
+      return {u:r.u+t.du,v:r.v+t.dv};
+    }
+    return {...p};
+  }
+
+  function applyTransform(p,t){ return state.grid === 'square' ? transformSq(p,t) : transformTri(p,t); }
+
+  function sameGrid(a,b){
+    if(state.grid === 'square') return a.x === b.x && a.y === b.y;
+    return a.u === b.u && a.v === b.v;
+  }
+
+  function gridMid(a,b){
+    if(state.grid === 'square') return {x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    return {u:(a.u+b.u)/2,v:(a.v+b.v)/2};
+  }
+
+  function isWhole(n){ return Math.abs(n-Math.round(n)) < EPS; }
+
+  function isGridPoint(p){
+    if(state.grid === 'square') return isWhole(p.x) && isWhole(p.y);
+    return isWhole(p.u) && isWhole(p.v);
+  }
+
+  function allGridPoints(points){
+    return points.every(isGridPoint);
+  }
+
+  function midpointFriendly(original,image){
+    for(let i=0;i<original.length;i++) if(!isGridPoint(gridMid(original[i],image[i]))) return false;
+    return true;
+  }
+
+  function translateGridPoint(p,t){
+    if(state.grid === 'square') return {x:p.x+(t.dx||0),y:p.y+(t.dy||0)};
+    return {u:p.u+(t.du||0),v:p.v+(t.dv||0)};
+  }
+
+  function rotationDisplayAngle(t){
+    if(state.grid === 'square'){
+      if(typeof t.deg === 'number') return t.deg;
+      return 0;
+    }
+    if(typeof t.displayDeg === 'number') return t.displayDeg;
+    if(typeof t.steps === 'number') return t.steps * 60;
+    return 0;
+  }
+
+  function vectorWords(a,b){
+    if(state.grid === 'square'){
+      const dx = Math.round(b.x-a.x), dy = Math.round(b.y-a.y);
+      const parts = [];
+      if(dy > 0) parts.push(`up ${dy}`);
+      if(dy < 0) parts.push(`down ${-dy}`);
+      if(dx > 0) parts.push(`right ${dx}`);
+      if(dx < 0) parts.push(`left ${-dx}`);
+      return parts.length ? parts.join(', ') : 'same point';
+    }
+    const du = Math.round(b.u-a.u), dv = Math.round(b.v-a.v);
+    const parts = [];
+    if(du) parts.push(`u ${du>0?'+':''}${du}`);
+    if(dv) parts.push(`v ${dv>0?'+':''}${dv}`);
+    return parts.length ? parts.join(', ') : 'same point';
+  }
+
+  function signedAreaWorld(points){
+    const P = points.map(gridToWorld);
+    return 0.5*((P[0].x*(P[1].y-P[2].y)) + (P[1].x*(P[2].y-P[0].y)) + (P[2].x*(P[0].y-P[1].y)));
+  }
+
+  function triangleHasArea(points){
+    return Math.abs(signedAreaWorld(points)) > GRID*GRID*0.08;
+  }
+
+  function boundsFit(original,image){
+    const all = original.concat(image).map(gridToWorld);
+    const xs = all.map(p=>p.x), ys = all.map(p=>p.y);
+    return Math.max(...xs)-Math.min(...xs) < 15*GRID && Math.max(...ys)-Math.min(...ys) < 11*GRID;
+  }
+
+  function randomTriangle(){
+    for(let tries=0; tries<80; tries++){
+      let tri;
+      if(state.grid === 'square'){
+        const templates = [
+          [{x:-2,y:-1},{x:1,y:-1},{x:-1,y:2}],
+          [{x:-2,y:1},{x:1,y:2},{x:2,y:-1}],
+          [{x:-1,y:-2},{x:2,y:-1},{x:0,y:2}],
+          [{x:-3,y:0},{x:0,y:2},{x:2,y:-1}]
+        ];
+        tri = choice(templates).map(p => ({x:p.x+rand(-1,1),y:p.y+rand(-1,1)}));
+      } else {
+        const templates = [
+          [{u:-2,v:0},{u:1,v:0},{u:-1,v:3}],
+          [{u:-2,v:1},{u:1,v:2},{u:2,v:-1}],
+          [{u:-1,v:-2},{u:2,v:-1},{u:0,v:2}],
+          [{u:-3,v:0},{u:0,v:2},{u:2,v:-1}]
+        ];
+        tri = choice(templates).map(p => ({u:p.u+rand(-1,1),v:p.v+rand(-1,1)}));
+      }
+      if(triangleHasArea(tri)) return tri;
+    }
+    return state.grid === 'square'
+      ? [{x:-2,y:-1},{x:2,y:-1},{x:0,y:2}]
+      : [{u:-2,v:0},{u:2,v:0},{u:0,v:3}];
+  }
+
+  function motionType(){
+    return state.motion === 'random' ? choice(['translation','reflection','rotation','transflection']) : state.motion;
+  }
+
+  function randomSquareReflection(type){
+    if(Math.random() < 0.35){
+      return {type,axis:choice(['x','y','diag','antidiag']),c:choice([-2,-1,0,1,2])};
+    }
+    return randomObliqueReflectionTransform(type);
+  }
+
+  function randomObliqueReflectionTransform(type){
+    const d = choice([
+      {x:1,y:2}, {x:2,y:1}, {x:1,y:3}, {x:3,y:1},
+      {x:2,y:3}, {x:3,y:2}, {x:-1,y:2}, {x:-2,y:1},
+      {x:-1,y:3}, {x:-3,y:1}, {x:-2,y:3}, {x:-3,y:2}
+    ]);
+    const p0 = {x:rand(-2,2),y:rand(-2,2)};
+    const n = {x:-d.y,y:d.x};
+    const c = n.x*p0.x + n.y*p0.y;
+    return {type,axis:'line',a:n.x,b:n.y,c,dir:d,norm:n,p0};
+  }
+
+  function randomSquareSimpleTransflectionTransform(type){
+    const axis = choice(['x','y','diag','antidiag']);
+    const c = choice([-2,-1,0,1,2]);
+    const k = choice([-4,-2,2,4]);
+    if(axis === 'x') return {type,axis,c,dx:k,dy:0};
+    if(axis === 'y') return {type,axis,c,dx:0,dy:k};
+    if(axis === 'diag') return {type,axis,c,dx:k,dy:k};
+    return {type,axis,c,dx:k,dy:-k};
+  }
+
+  function parallelTriGridSteps(dir, requireEven=false){
+    const out = [];
+    for(let du=-4; du<=4; du++){
+      for(let dv=-4; dv<=4; dv++){
+        if(du === 0 && dv === 0) continue;
+        if(requireEven && ((Math.abs(du)%2) || (Math.abs(dv)%2))) continue;
+        const w = triToWorld({u:du,v:dv});
+        if(Math.hypot(w.x,w.y) < EPS) continue;
+        const cross = w.x*dir.y - w.y*dir.x;
+        if(Math.abs(cross) < 1e-6) out.push({du,dv,len:Math.hypot(w.x,w.y)});
+      }
+    }
+    out.sort((a,b) => a.len-b.len);
+    return out;
+  }
+
+  function makeSquareObliqueReflectionProblem(type){
+    for(let tries=0; tries<160; tries++){
+      const transform = randomObliqueReflectionTransform(type);
+      const d = transform.dir;
+      const n = transform.norm;
+      const sVals = [-2,-1,0,1,2,3].sort(() => Math.random()-.5).slice(0,3);
+      const kVals = [choice([-2,-1,1,2]), choice([-2,-1,1,2]), choice([-2,-1,1,2])];
+      const original = sVals.map((s,i) => {
+        const m = {x:transform.p0.x + s*d.x, y:transform.p0.y + s*d.y};
+        const k = kVals[i];
+        return {x:m.x + k*n.x, y:m.y + k*n.y};
+      });
+      const image = sVals.map((s,i) => {
+        const m = {x:transform.p0.x + s*d.x, y:transform.p0.y + s*d.y};
+        const k = kVals[i];
+        return {x:m.x - k*n.x, y:m.y - k*n.y};
+      });
+      if(triangleHasArea(original) && triangleHasArea(image) && boundsFit(original,image) && midpointFriendly(original,image)){
+        return {original,image,transform};
+      }
+    }
+    const transform = {type,axis:'line',a:-2,b:1,c:0,dir:{x:1,y:2},norm:{x:-2,y:1},p0:{x:0,y:0}};
+    return {
+      original:[{x:-4,y:2},{x:0,y:4},{x:0,y:-1}],
+      image:[{x:4,y:-2},{x:0,y:-4},{x:0,y:1}],
+      transform
+    };
+  }
+
+
+  function makeSquareTransflectionProblem(type){
+    if(Math.random() < 0.42){
+      for(let tries=0; tries<180; tries++){
+        const original = randomTriangle();
+        const transform = randomSquareSimpleTransflectionTransform(type);
+        const image = original.map(p => applyTransform(p,transform));
+        if(boundsFit(original,image) && triangleHasArea(original) && triangleHasArea(image) && allGridPoints(image) && midpointFriendly(original,image)){
+          return {original,image,transform};
+        }
+      }
+    }
+    for(let tries=0; tries<180; tries++){
+      const base = makeSquareObliqueReflectionProblem(type);
+      const g = choice([-4,-2,2,4]);
+      const transform = {...base.transform, type, dx:g*base.transform.dir.x, dy:g*base.transform.dir.y};
+      const image = base.image.map(p => ({x:p.x+transform.dx, y:p.y+transform.dy}));
+      if(boundsFit(base.original,image) && triangleHasArea(base.original) && triangleHasArea(image) && allGridPoints(image) && midpointFriendly(base.original,image)){
+        return {original:base.original, image, transform};
+      }
+    }
+    const transform = {type,axis:'line',a:-2,b:1,c:0,dir:{x:1,y:2},norm:{x:-2,y:1},p0:{x:0,y:0},dx:2,dy:4};
+    return {
+      original:[{x:-4,y:2},{x:0,y:4},{x:0,y:-1}],
+      image:[{x:6,y:2},{x:2,y:0},{x:2,y:5}],
+      transform
+    };
+  }
+
+  function makeTriangleReflectionProblem(type){
+    const gridDirs = [
+      {x:1,y:0,name:'horizontal grid line'},
+      {x:0.5,y:-SQRT3/2,name:'down-right grid line'},
+      {x:0.5,y:SQRT3/2,name:'up-right grid line'}
+    ];
+    const mode = Math.random() < 0.55 ? 'grid' : 'altitude';
+    const base = choice(gridDirs);
+    const dir = mode === 'grid' ? normalize(base) : normalize(perp(base));
+    const p0Candidates = [];
+    const edgeSteps = [{u:1,v:0},{u:0,v:1},{u:1,v:-1}];
+    for(let u=-3; u<=3; u++){
+      for(let v=-3; v<=3; v++){
+        const g = {u,v};
+        const w = triToWorld(g);
+        p0Candidates.push({p0:w, kind:'vertex'});
+        for(const e of edgeSteps){
+          const h = {u:u+e.u, v:v+e.v};
+          const wh = triToWorld(h);
+          p0Candidates.push({p0:mid(w,wh), kind:'midpoint'});
+        }
+      }
+    }
+    for(let tries=0; tries<240; tries++){
+      const picked = choice(p0Candidates);
+      const p0 = picked.p0;
+      const pairs = [];
+      for(let u=-6; u<=6; u++){
+        for(let v=-6; v<=6; v++){
+          const aGrid = {u,v};
+          const aWorld = triToWorld(aGrid);
+          const bWorld = reflectWorldAcrossLine(aWorld,p0,dir);
+          const bGrid = triGridFromWorld(bWorld);
+          if(!bGrid || (bGrid.u === aGrid.u && bGrid.v === aGrid.v)) continue;
+          const side = lineSide(aWorld,p0,dir);
+          if(side === 0) continue;
+          pairs.push({a:aGrid,b:bGrid,side,dist:Math.hypot(aWorld.x-bWorld.x,aWorld.y-bWorld.y)/2});
+        }
+      }
+      const usable = pairs.filter(pair => pair.side === choice([-1,1]));
+      if(usable.length < 3) continue;
+      for(let t=0; t<80; t++){
+        const sample = usable.slice().sort(() => Math.random()-.5).slice(0,3);
+        const original = sample.map(x => x.a);
+        const image = sample.map(x => x.b);
+        if(!triangleHasArea(original) || !triangleHasArea(image) || !boundsFit(original,image) || !midpointFriendly(original,image)) continue;
+        const stepSize = mode === 'grid' ? GRID*SQRT3/2 : GRID/2;
+        return {
+          original,
+          image,
+          transform:{
+            type, axis:'triLine', p0, dir, triMode:mode, baseName:base.name,
+            pointKind:picked.kind, stepSize
+          }
+        };
+      }
+    }
+    const fallbackP0 = triToWorld({u:0,v:0});
+    const fallbackDir = normalize({x:1,y:0});
+    return {
+      original:[{u:0,v:1},{u:-1,v:2},{u:2,v:1}],
+      image:[{u:1,v:-1},{u:1,v:-2},{u:3,v:-1}],
+      transform:{type,axis:'triLine',p0:fallbackP0,dir:fallbackDir,triMode:'grid',baseName:'horizontal grid line',pointKind:'vertex',stepSize:GRID*SQRT3/2}
+    };
+  }
+
+  function makeTriangleTransflectionProblem(type){
+    for(let tries=0; tries<220; tries++){
+      const base = makeTriangleReflectionProblem(type);
+      const steps = parallelTriGridSteps(base.transform.dir, true).filter(s => !(s.du === 0 && s.dv === 0));
+      if(!steps.length) continue;
+      const step = choice(steps.slice(0, Math.min(6, steps.length)));
+      const transform = {...base.transform, type, du:step.du, dv:step.dv};
+      const image = base.image.map(p => ({u:p.u+transform.du, v:p.v+transform.dv}));
+      if(boundsFit(base.original,image) && triangleHasArea(base.original) && triangleHasArea(image) && allGridPoints(image) && midpointFriendly(base.original,image)){
+        return {original:base.original, image, transform};
+      }
+    }
+    const dir = normalize({x:1,y:0});
+    const p0 = triToWorld({u:0,v:0});
+    const transform = {type,axis:'triLine',p0,dir,triMode:'grid',baseName:'horizontal grid line',pointKind:'vertex',stepSize:GRID*SQRT3/2,du:2,dv:0};
+    return {
+      original:[{u:0,v:1},{u:-1,v:2},{u:2,v:1}],
+      image:[{u:3,v:-1},{u:3,v:-2},{u:5,v:-1}],
+      transform
+    };
+  }
+
+
+
+  function makeSquareRotationProblem(type){
+    const deg = choice([-180,-90,90,180]);
+    for(let tries=0; tries<240; tries++){
+      const cx = rand(-2,2), cy = rand(-2,2);
+      const transform = {type,cx,cy,deg};
+      const candidates = [];
+      for(let dx=-5; dx<=5; dx++){
+        for(let dy=-5; dy<=5; dy++){
+          if(dx === 0 && dy === 0) continue;
+          if(Math.abs(deg) % 180 === 90 && ((Math.abs(dx) % 2) !== (Math.abs(dy) % 2))) continue;
+          const pt = {x:cx + dx, y:cy + dy};
+          const img = transformSq(pt, transform);
+          if(!isGridPoint(img)) continue;
+          candidates.push({pt,img});
+        }
+      }
+      for(let pick=0; pick<120; pick++){
+        const sample = candidates.slice().sort(() => Math.random() - .5).slice(0,3);
+        const original = sample.map(s => s.pt);
+        const image = sample.map(s => s.img);
+        if(!triangleHasArea(original) || !triangleHasArea(image)) continue;
+        if(!boundsFit(original,image) || !midpointFriendly(original,image)) continue;
+        const samePoint = original.some((pt,i) => sameGrid(pt,image[i]));
+        if(samePoint) continue;
+        return {original,image,transform};
+      }
+    }
+    const transform = {type,cx:0,cy:0,deg:90};
+    return {
+      original:[{x:2,y:0},{x:0,y:2},{x:2,y:2}],
+      image:[{x:0,y:2},{x:-2,y:0},{x:-2,y:2}],
+      transform
+    };
+  }
+
+  function makeTriangleRotationProblem(type){
+    const angleChoices = state.problem === 'forward'
+      ? [-180,-150,-120,-90,-60,-30,30,60,90,120,150,180]
+      : [-180,-120,-60,60,120,180];
+
+    for(let tries=0; tries<320; tries++){
+      const cu = rand(-2,2), cv = rand(-2,2);
+      const centerGrid = {u:cu, v:cv};
+      const centerWorld = triToWorld(centerGrid);
+      const displayDeg = choice(angleChoices);
+      const transform = {type,cu,cv,displayDeg};
+      const candidates = [];
+
+      for(let du=-8; du<=8; du++){
+        for(let dv=-8; dv<=8; dv++){
+          if(du === 0 && dv === 0) continue;
+          const offset = {u:du, v:dv};
+          if(!isTriThirtyDirection(offset)) continue;
+          const pt = {u:cu + du, v:cv + dv};
+          const imgWorld = rotateWorldMath(triToWorld(pt), centerWorld, displayDeg);
+          const img = triGridFromWorld(imgWorld);
+          if(!img) continue;
+          if(sameGrid(pt,img)) continue;
+          candidates.push({pt,img});
+        }
+      }
+
+      if(candidates.length < 3) continue;
+      for(let pick=0; pick<180; pick++){
+        const sample = candidates.slice().sort(() => Math.random() - .5).slice(0,3);
+        const original = sample.map(s => s.pt);
+        const image = sample.map(s => s.img);
+        if(!triangleHasArea(original) || !triangleHasArea(image)) continue;
+        if(!boundsFit(original,image)) continue;
+        if(state.problem === 'backward' && !midpointFriendly(original,image)) continue;
+        const uniqueOriginal = new Set(original.map(p => `${p.u},${p.v}`)).size === 3;
+        const uniqueImage = new Set(image.map(p => `${p.u},${p.v}`)).size === 3;
+        if(!uniqueOriginal || !uniqueImage) continue;
+        return {original,image,transform};
+      }
+    }
+
+    if(state.problem === 'forward'){
+      const transform = {type,cu:0,cv:0,displayDeg:60};
+      return {
+        original:[{u:2,v:0},{u:0,v:2},{u:-2,v:2}],
+        image:[{u:0,v:2},{u:-2,v:2},{u:-2,v:0}],
+        transform
+      };
+    }
+    const transform = {type,cu:0,cv:0,displayDeg:60};
+    return {
+      original:[{u:2,v:0},{u:0,v:2},{u:-2,v:2}],
+      image:[{u:0,v:2},{u:-2,v:2},{u:-2,v:0}],
+      transform
+    };
+  }
+
+  function randomTransform(type){
+    if(state.grid === 'square'){
+      if(type === 'translation') return {type,dx:choice([-4,-3,-2,2,3,4]),dy:choice([-3,-2,2,3])};
+      if(type === 'reflection') return randomSquareReflection(type);
+      if(type === 'rotation') return {type,cx:choice([-2,-1,0,1,2]),cy:choice([-2,-1,0,1,2]),deg:choice([-180,-90,90,180])};
+      return randomSquareSimpleTransflectionTransform(type);
+    }
+    if(type === 'translation') return {type,du:choice([-4,-3,-2,2,3,4]),dv:choice([-3,-2,2,3])};
+    if(type === 'reflection') return {type,axis:choice(['u','v','uv']),c:choice([-2,-1,0,1,2])};
+    if(type === 'rotation'){ const displayDeg = choice([-180,-120,-60,60,120,180]); return {type,cu:choice([-2,-1,0,1,2]),cv:choice([-2,-1,0,1,2]),displayDeg}; }
+    const axis = choice(['u','v','uv']);
+    const k = choice([-4,-2,2,4]);
+    if(axis === 'u') return {type,axis,c:choice([-2,-1,0,1,2]),du:0,dv:k};
+    if(axis === 'v') return {type,axis,c:choice([-2,-1,0,1,2]),du:k,dv:0};
+    return {type,axis,c:choice([-2,-1,0,1,2]),du:k,dv:-k};
+  }
+
+  function makeProblem(){
+    state.strokes = [];
+    state.view = {x:0,y:0,scale:1};
+    const actualMotion = motionType();
+    state.actualMotion = actualMotion;
+    let original, image, transform;
+
+    if(state.grid === 'square' && actualMotion === 'reflection' && Math.random() < 0.72){
+      const built = makeSquareObliqueReflectionProblem(actualMotion);
+      original = built.original; image = built.image; transform = built.transform;
+    } else if(state.grid === 'square' && actualMotion === 'rotation'){
+      const built = makeSquareRotationProblem(actualMotion);
+      original = built.original; image = built.image; transform = built.transform;
+    } else if(state.grid === 'square' && actualMotion === 'transflection' && Math.random() < 0.72){
+      const built = makeSquareTransflectionProblem(actualMotion);
+      original = built.original; image = built.image; transform = built.transform;
+    } else if(state.grid === 'triangle' && actualMotion === 'reflection'){
+      const built = makeTriangleReflectionProblem(actualMotion);
+      original = built.original; image = built.image; transform = built.transform;
+    } else if(state.grid === 'triangle' && actualMotion === 'rotation'){
+      const built = makeTriangleRotationProblem(actualMotion);
+      original = built.original; image = built.image; transform = built.transform;
+    } else if(state.grid === 'triangle' && actualMotion === 'transflection'){
+      const built = makeTriangleTransflectionProblem(actualMotion);
+      original = built.original; image = built.image; transform = built.transform;
+    } else {
+      for(let tries=0; tries<260; tries++){
+        original = randomTriangle();
+        transform = randomTransform(actualMotion);
+        image = original.map(p => applyTransform(p,transform));
+        const needsMidpoints = actualMotion === 'reflection' || actualMotion === 'rotation' || actualMotion === 'transflection';
+        if(boundsFit(original,image) && triangleHasArea(original) && triangleHasArea(image) && allGridPoints(image) && (!needsMidpoints || midpointFriendly(original,image))) break;
+      }
+    }
+    state.problemData = {original,image,transform};
+    updatePrompt();
+    draw();
+  }
+
+  function motionLabel(){
+    const t = state.problemData.transform;
+    if(state.grid === 'square'){
+      if(t.type === 'translation') return `Translate by ⟨${t.dx}, ${t.dy}⟩`;
+      if(t.type === 'reflection'){
+        const map = {x:`Reflect over y = ${t.c}`, y:`Reflect over x = ${t.c}`, diag:`Reflect over y = x ${t.c>=0?'+':''}${t.c}`, antidiag:`Reflect over y = -x ${t.c>=0?'+':''}${t.c}`};
+        if(t.axis === 'line') return `Reflect over ${t.a}x + ${t.b}y = ${t.c}`;
+        return map[t.axis];
+      }
+      if(t.type === 'rotation') return `Rotate ${Math.abs(rotationDisplayAngle(t))}° ${rotationDisplayAngle(t) < 0 ? 'CW' : 'CCW'} about (${t.cx}, ${t.cy})`;
+      return `Reflect, then slide by ⟨${t.dx}, ${t.dy}⟩`;
+    }
+    if(t.type === 'translation') return `Translate by ⟨${t.du}, ${t.dv}⟩`;
+    if(t.type === 'reflection'){
+      if(t.axis === 'triLine') return t.triMode === 'grid' ? 'Reflect over a triangular-grid line' : 'Reflect over a tip-to-base line';
+      const map = {u:`Reflect over u = ${t.c}`, v:`Reflect over v = ${t.c}`, uv:`Reflect over u + v = ${t.c}`};
+      return map[t.axis];
+    }
+    if(t.type === 'rotation') return `Rotate ${Math.abs(rotationDisplayAngle(t))}° ${rotationDisplayAngle(t) < 0 ? 'CW' : 'CCW'} about ⟨${t.cu}, ${t.cv}⟩`;
+    return `Reflect, then slide on the triangular grid`;
+  }
+
+  function updatePrompt(){
+    if(!state.problemData) return;
+    const left = state.problem === 'forward' ? 'Find A′B′C′' : 'Identify the rigid motion';
+    if(promptText) promptText.textContent = `${left} · ${state.grid === 'square' ? 'Square grid' : 'Triangle grid'} · ${state.problem === 'forward' ? motionLabel() : cap(state.actualMotion)}`;
+  }
+
+  function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(rect.width*dpr);
+    canvas.height = Math.round(rect.height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    state.canvasSize = {w:rect.width,h:rect.height};
+    draw();
+  }
+
+  function clear(){ ctx.clearRect(0,0,state.canvasSize.w,state.canvasSize.h); }
+
+  function draw(){
+    if(!state.problemData || !state.canvasSize.w) return;
+    clear();
+    drawGrid();
+    if(state.problem === 'forward') drawForwardGiven();
+    else drawBackwardGiven();
+    drawStrokes();
+    if(state.showSolution) drawSolution();
+  }
+
+  function lineWorld(a,b,style={}){
+    const A = worldToScreen(a), B = worldToScreen(b);
+    ctx.save();
+    ctx.strokeStyle = style.color || BLUE;
+    ctx.lineWidth = style.width || 2;
+    ctx.globalAlpha = style.alpha ?? 1;
+    if(style.dash) ctx.setLineDash(style.dash);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawGrid(){
+    const w = state.canvasSize.w, h = state.canvasSize.h;
+    const s = GRID*state.view.scale;
+    const center = {x:w/2+state.view.x,y:h/2+state.view.y};
+    ctx.save();
+    ctx.strokeStyle = '#e7dfd2';
+    ctx.lineWidth = 1;
+    if(state.grid === 'square'){
+      const left = -center.x/s - 2, right = (w-center.x)/s + 2;
+      const top = -center.y/s - 2, bottom = (h-center.y)/s + 2;
+      for(let x=Math.floor(left); x<=Math.ceil(right); x++){
+        const X = center.x + x*s;
+        ctx.beginPath(); ctx.moveTo(X,0); ctx.lineTo(X,h); ctx.stroke();
+      }
+      for(let y=Math.floor(top); y<=Math.ceil(bottom); y++){
+        const Y = center.y + y*s;
+        ctx.beginPath(); ctx.moveTo(0,Y); ctx.lineTo(w,Y); ctx.stroke();
+      }
+      ctx.strokeStyle = '#c5b89d'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(center.x,0); ctx.lineTo(center.x,h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,center.y); ctx.lineTo(w,center.y); ctx.stroke();
+    } else {
+      const dirs = [0,Math.PI/3,-Math.PI/3];
+      const span = Math.hypot(w,h)/s + 8;
+      const max = Math.ceil(span);
+      ctx.translate(center.x,center.y);
+      ctx.scale(s,s);
+      ctx.lineWidth = 1/s;
+      for(const angle of dirs){
+        const n = {x:-Math.sin(angle), y:Math.cos(angle)};
+        const d = SQRT3/2;
+        for(let k=-max;k<=max;k++){
+          const off = k*d;
+          const px = n.x*off, py = n.y*off;
+          const vx = Math.cos(angle)*span, vy = Math.sin(angle)*span;
+          ctx.beginPath(); ctx.moveTo(px-vx,py-vy); ctx.lineTo(px+vx,py+vy); ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawRotationCenter(t,color=SOL,showLabel=false){
+    const c = rotationCenterWorld(t);
+    drawCenter(c,color,8);
+    if(showLabel){
+      const angle = rotationDisplayAngle(t);
+      const clockwise = angle < 0;
+      drawCircularArrow(c, 34, clockwise, color);
+      labelAt(add(c,{x:0,y:-50}), `${Math.abs(angle)}° ${clockwise ? 'CW' : 'CCW'}`, color, 0);
+    }
+  }
+
+  function drawTriangle(points, labels, opts={}){
+    const P = points.map(gridToWorld).map(worldToScreen);
+    ctx.save();
+    ctx.globalAlpha = opts.alpha ?? 1;
+    ctx.fillStyle = opts.fill || 'rgba(214,191,145,.28)';
+    ctx.strokeStyle = opts.stroke || BLUE;
+    ctx.lineWidth = opts.width || 3;
+    ctx.beginPath(); ctx.moveTo(P[0].x,P[0].y); ctx.lineTo(P[1].x,P[1].y); ctx.lineTo(P[2].x,P[2].y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.font = '800 16px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for(let i=0;i<P.length;i++){
+      ctx.fillStyle = opts.labelFill || '#fff';
+      ctx.strokeStyle = opts.labelStroke || BLUE;
+      ctx.lineWidth = 5;
+      ctx.strokeText(labels[i],P[i].x,P[i].y-18);
+      ctx.fillText(labels[i],P[i].x,P[i].y-18);
+      ctx.fillStyle = opts.dot || BLUE;
+      ctx.beginPath(); ctx.arc(P[i].x,P[i].y,4.5,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawForwardGiven(){
+    const {original,transform} = state.problemData;
+    drawTriangle(original,['A','B','C']);
+    drawGivenMotion(transform);
+  }
+
+  function drawBackwardGiven(){
+    const {original,image} = state.problemData;
+    drawTriangle(original,['A','B','C']);
+    drawTriangle(image,["A′","B′","C′"],{fill:'rgba(127,186,227,.22)',stroke:IMG,dot:IMG,labelStroke:IMG});
+  }
+
+  function drawGivenMotion(t){
+    if(t.type === 'translation') drawFloatingVector(t, '#256f94', 'vector of translation', {headSize:18});
+    if(t.type === 'reflection') drawReflectionLine(t, '#256f94', [7,5]);
+    if(t.type === 'rotation') drawRotationCenter(t, '#256f94', true);
+    if(t.type === 'transflection'){
+      drawReflectionLine(t, '#256f94', [7,5]);
+      drawFloatingVector(t, '#256f94', 'glide vector', {headSize:18});
+    }
+  }
+
+  function drawSolution(){
+    if(state.problem === 'forward'){
+      drawTriangle(state.problemData.image,["A′","B′","C′"],{fill:'rgba(196,59,89,.20)',stroke:SOL,dot:SOL,labelStroke:SOL,alpha:.92});
+      return;
+    }
+    const t = state.problemData.transform;
+    if(t.type === 'translation') drawTranslationSolution();
+    if(t.type === 'reflection') drawReflectionSolution();
+    if(t.type === 'rotation') drawRotationSolution();
+    if(t.type === 'transflection') drawTransflectionSolution();
+  }
+
+  function drawWorldArrow(a,b,color=SOL,dash=null,opts={}){
+    const A = worldToScreen(a), B = worldToScreen(b);
+    drawScreenArrow(A,B,color,dash,opts);
+  }
+
+  function drawScreenArrow(A,B,color=SOL,dash=null,opts={}){
+    const ang = Math.atan2(B.y-A.y,B.x-A.x);
+    const headSize = opts.headSize || 14;
+    const width = opts.width || 3;
+    ctx.save();
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+    if(dash) ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(B.x,B.y);
+    ctx.lineTo(B.x-headSize*Math.cos(ang-.45),B.y-headSize*Math.sin(ang-.45));
+    ctx.lineTo(B.x-headSize*Math.cos(ang+.45),B.y-headSize*Math.sin(ang+.45));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function labelScreenAt(P,text,color=SOL,dy=0){
+    ctx.save(); ctx.font='800 13px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.lineWidth=5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.fillStyle=color;
+    ctx.strokeText(text,P.x,P.y+dy); ctx.fillText(text,P.x,P.y+dy); ctx.restore();
+  }
+
+  function transformVectorWorld(t){
+    if(state.grid === 'square'){
+      return sub(sqToWorld({x:t.dx||0,y:t.dy||0}), sqToWorld({x:0,y:0}));
+    }
+    return sub(triToWorld({u:t.du||0,v:t.dv||0}), triToWorld({u:0,v:0}));
+  }
+
+  function floatingVectorPlacement(t){
+    const targets = [
+      {x:state.canvasSize.w-176,y:92},
+      {x:state.canvasSize.w-176,y:state.canvasSize.h-104},
+      {x:176,y:state.canvasSize.h-104},
+      {x:176,y:92},
+      {x:state.canvasSize.w/2,y:state.canvasSize.h-92}
+    ];
+    const margin = 24;
+    for(const target of targets){
+      const startGrid = worldToNearestGrid(screenToWorld(target));
+      const endGrid = translateGridPoint(startGrid,t);
+      const startWorld = gridToWorld(startGrid);
+      const endWorld = gridToWorld(endGrid);
+      const A = worldToScreen(startWorld), B = worldToScreen(endWorld);
+      const fits = [A,B].every(P => P.x >= margin && P.x <= state.canvasSize.w-margin && P.y >= margin && P.y <= state.canvasSize.h-margin);
+      if(fits) return {startWorld,endWorld};
+    }
+    const startGrid = worldToNearestGrid(screenToWorld({x:state.canvasSize.w-176,y:state.canvasSize.h-104}));
+    const endGrid = translateGridPoint(startGrid,t);
+    return {startWorld:gridToWorld(startGrid), endWorld:gridToWorld(endGrid)};
+  }
+
+  function drawFloatingVector(t,color=SOL,text='vector',opts={}){
+    const placement = floatingVectorPlacement(t);
+    drawWorldArrow(placement.startWorld, placement.endWorld, color, null, {headSize:opts.headSize||18, width:opts.width||3.2});
+    labelAt(mid(placement.startWorld,placement.endWorld), text, color, -14);
+  }
+
+  function drawVectorByTransform(t,color=SOL,withAll=true){
+    const {original,image} = state.problemData;
+    if(withAll){
+      for(let i=0;i<3;i++) drawWorldArrow(gridToWorld(original[i]),gridToWorld(image[i]),color);
+    } else {
+      const start = gridToWorld(original[0]);
+      const end = gridToWorld(image[0]);
+      drawWorldArrow(start,end,color);
+    }
+  }
+
+  function drawTranslationSolution(){
+    drawFloatingVector(state.problemData.transform, SOL, 'vector of translation', {headSize:18});
+  }
+
+  function reflectionDistanceLabel(a,m,t){
+    return '';
+  }
+
+  function drawReflectionSolution(){
+    const {original,image,transform:t} = state.problemData;
+    drawReflectionLine(t,SOL,null);
+    for(let i=0;i<3;i++){
+      const mg = gridMid(original[i],image[i]);
+      const a = gridToWorld(original[i]), b = gridToWorld(image[i]), m = gridToWorld(mg);
+      lineWorld(a,b,{color:SOL,width:2,dash:[5,5],alpha:.95});
+      drawRightAngleAt(m, lineDirectionForReflection(t), SOL);
+      const leftLabel = reflectionDistanceLabel(original[i],mg,t);
+      const rightLabel = reflectionDistanceLabel(mg,image[i],t);
+      if(leftLabel) labelAt(mid(a,m),leftLabel,SOL,-8);
+      if(rightLabel) labelAt(mid(m,b),rightLabel,SOL,12);
+    }
+  }
+
+  function drawRotationSolution(){
+    const {original,image,transform:t} = state.problemData;
+    const c = rotationCenterWorld(t);
+    drawCenter(c,SOL);
+    const angle = rotationDisplayAngle(t);
+    const clockwise = angle < 0;
+    drawCircularArrow(c, 34, clockwise, SOL);
+    labelAt(add(c,{x:0,y:-48}),`${Math.abs(angle)}° ${clockwise?'CW':'CCW'}`,SOL,0);
+    for(let i=0;i<3;i++){
+      const mg = gridMid(original[i],image[i]);
+      const a = gridToWorld(original[i]), b = gridToWorld(image[i]), m = gridToWorld(mg);
+      const n = normalize(sub(b,a));
+      const p = perp(n);
+      lineWorld(add(m,mul(p,-500)),add(m,mul(p,500)),{color:SOL,width:1.8,dash:[7,6],alpha:.85});
+      lineWorld(a,b,{color:SOL,width:1.4,dash:[4,6],alpha:.65});
+      drawRightAngleAt(m,p,SOL);
+      // Additional point-to-center helper lines and repeated angle labels omitted to keep the rotation construction uncluttered.
+    }
+  }
+
+  function drawTransflectionSolution(){
+    const {original,image,transform:t} = state.problemData;
+    drawReflectionLine(t,SOL,null);
+    for(let i=0;i<3;i++){
+      const a = gridToWorld(original[i]);
+      const b = gridToWorld(image[i]);
+      lineWorld(a,b,{color:SOL,width:1.8,dash:[5,6],alpha:.65});
+    }
+    drawFloatingVector(t, SOL, 'glide vector', {headSize:18});
+    for(let i=0;i<2;i++){
+      const mg = gridMid(original[i],image[i]);
+      const m = gridToWorld(mg);
+      drawCenter(m,SOL,5);
+    }
+  }
+
+  function rotationCenterWorld(t){
+    if(state.grid === 'square') return sqToWorld({x:t.cx,y:t.cy});
+    return triToWorld({u:t.cu,v:t.cv});
+  }
+  function rotationAngle(t){
+    return rotationDisplayAngle(t);
+  }
+
+  function drawReflectionLine(t,color=SOL,dash=null){
+    let a,b;
+    const L = 1000;
+    if(state.grid === 'square'){
+      if(t.axis === 'x'){ a=sqToWorld({x:-L,y:t.c}); b=sqToWorld({x:L,y:t.c}); }
+      if(t.axis === 'y'){ a=sqToWorld({x:t.c,y:-L}); b=sqToWorld({x:t.c,y:L}); }
+      if(t.axis === 'diag'){ a=sqToWorld({x:-L,y:-L+t.c}); b=sqToWorld({x:L,y:L+t.c}); }
+      if(t.axis === 'antidiag'){ a=sqToWorld({x:-L,y:L+t.c}); b=sqToWorld({x:L,y:-L+t.c}); }
+      if(t.axis === 'line'){
+        const x1 = -L, x2 = L;
+        a = sqToWorld({x:x1,y:(t.c - t.a*x1)/t.b});
+        b = sqToWorld({x:x2,y:(t.c - t.a*x2)/t.b});
+      }
+    } else {
+      if(t.axis === 'triLine'){
+        const d = normalize(t.dir);
+        a = add(t.p0,mul(d,-L));
+        b = add(t.p0,mul(d,L));
+      }
+      if(t.axis === 'u'){ a=triToWorld({u:t.c,v:-L}); b=triToWorld({u:t.c,v:L}); }
+      if(t.axis === 'v'){ a=triToWorld({u:-L,v:t.c}); b=triToWorld({u:L,v:t.c}); }
+      if(t.axis === 'uv'){ a=triToWorld({u:-L,v:t.c+L}); b=triToWorld({u:L,v:t.c-L}); }
+    }
+    lineWorld(a,b,{color,width:3,dash,alpha:.9});
+    labelAt(mid(a,b), 'line of reflection', color, -14);
+  }
+
+  function lineDirectionForReflection(t){
+    let a,b;
+    if(state.grid === 'square'){
+      if(t.axis === 'x') return {x:1,y:0};
+      if(t.axis === 'y') return {x:0,y:1};
+      if(t.axis === 'diag') return normalize({x:1,y:-1});
+      if(t.axis === 'antidiag') return normalize({x:1,y:1});
+      if(t.axis === 'line') return normalize({x:t.b,y:-t.a});
+      return normalize({x:1,y:0});
+    }
+    if(t.axis === 'triLine') return normalize(t.dir);
+    if(t.axis === 'u'){ a=triToWorld({u:t.c,v:0}); b=triToWorld({u:t.c,v:1}); }
+    if(t.axis === 'v'){ a=triToWorld({u:0,v:t.c}); b=triToWorld({u:1,v:t.c}); }
+    if(t.axis === 'uv'){ a=triToWorld({u:0,v:t.c}); b=triToWorld({u:1,v:t.c-1}); }
+    return normalize(sub(b,a));
+  }
+
+  function drawRightAngleAt(p,dir,color){
+    const u = normalize(dir), v = perp(u), r = 13/state.view.scale;
+    const a = add(p,mul(u,r)), b = add(a,mul(v,r)), c = add(p,mul(v,r));
+    const A=worldToScreen(a), B=worldToScreen(b), C=worldToScreen(c);
+    ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.lineTo(C.x,C.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCenter(p,color=SOL,r=8){
+    const P = worldToScreen(p);
+    ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.fillStyle='rgba(255,255,255,.75)';
+    ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+
+  function drawCircularArrow(c,r,clockwise,color){
+    const C = worldToScreen(c);
+    ctx.save(); ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3;
+    const start = clockwise ? -0.75*Math.PI : 0.25*Math.PI;
+    const end = clockwise ? 0.75*Math.PI : 1.75*Math.PI;
+    ctx.beginPath(); ctx.arc(C.x,C.y,r,start,end,!clockwise); ctx.stroke();
+    const a = end;
+    const x = C.x + r*Math.cos(a), y = C.y + r*Math.sin(a);
+    const tangent = a + (clockwise ? Math.PI/2 : -Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.lineTo(x-12*Math.cos(tangent-.45),y-12*Math.sin(tangent-.45));
+    ctx.lineTo(x-12*Math.cos(tangent+.45),y-12*Math.sin(tangent+.45));
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+
+  function pointOnAngle(c,a,b,t){
+    const va = normalize(sub(a,c)), vb = normalize(sub(b,c));
+    return add(c,mul(normalize(add(va,vb)),36 + 18*t));
+  }
+
+  function labelAt(world,text,color=SOL,dy=0){
+    const P = worldToScreen(world);
+    ctx.save(); ctx.font='800 13px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.lineWidth=5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.fillStyle=color;
+    ctx.strokeText(text,P.x,P.y+dy); ctx.fillText(text,P.x,P.y+dy); ctx.restore();
+  }
+
+  function drawStrokes(){
+    const layer = document.createElement('canvas');
+    layer.width = Math.max(1, Math.round(state.canvasSize.w));
+    layer.height = Math.max(1, Math.round(state.canvasSize.h));
+    const lctx = layer.getContext('2d');
+    lctx.lineCap = 'round';
+    lctx.lineJoin = 'round';
+    for(const s of state.strokes){
+      lctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+      lctx.strokeStyle = s.color;
+      lctx.fillStyle = s.color;
+      lctx.lineWidth = s.width * state.view.scale;
+      if(s.points.length < 2){
+        const first = worldToScreen(s.points[0]);
+        const radius = s.erase ? 7 : 4.5;
+        lctx.beginPath();
+        lctx.arc(first.x,first.y,radius,0,Math.PI*2);
+        if(s.erase) lctx.fill(); else lctx.fill();
+        continue;
+      }
+      lctx.beginPath();
+      const first = worldToScreen(s.points[0]);
+      lctx.moveTo(first.x,first.y);
+      for(let i=1;i<s.points.length;i++){
+        const p = worldToScreen(s.points[i]); lctx.lineTo(p.x,p.y);
+      }
+      lctx.stroke();
+    }
+    ctx.drawImage(layer,0,0);
+  }
+
+  function pointerPos(e){
+    const r = canvas.getBoundingClientRect();
+    return {x:e.clientX-r.left,y:e.clientY-r.top};
+  }
+
+  function startPointer(e){
+    canvas.setPointerCapture(e.pointerId);
+    const p = pointerPos(e);
+    state.pointer = {id:e.pointerId,start:p,last:p,mode:state.mode};
+    if(state.mode === 'draw' || state.mode === 'erase'){
+      const width = (state.mode === 'erase' ? 10 : 3) / state.view.scale;
+      const useSnap = state.mode === 'draw' && state.snapToGrid;
+      state.strokes.push({points:[inputWorldPoint(p,useSnap)],color:state.color,width,erase:state.mode==='erase'});
+    }
+    draw();
+  }
+
+  function movePointer(e){
+    if(!state.pointer || state.pointer.id !== e.pointerId) return;
+    const p = pointerPos(e);
+    if(state.pointer.mode === 'pan'){
+      state.view.x += p.x-state.pointer.last.x;
+      state.view.y += p.y-state.pointer.last.y;
+    } else {
+      const s = state.strokes[state.strokes.length-1];
+      const snappedDraw = state.pointer.mode === 'draw' && state.snapToGrid;
+      const next = inputWorldPoint(p,snappedDraw);
+      if(snappedDraw){
+        const first = s.points[0];
+        if(Math.hypot(next.x-first.x,next.y-first.y) > 0.001) s.points = [first,next];
+        else s.points = [first];
+      } else {
+        const last = s.points[s.points.length-1];
+        if(!last || Math.hypot(next.x-last.x,next.y-last.y) > 0.001) s.points.push(next);
+      }
+    }
+    state.pointer.last = p;
+    draw();
+  }
+
+  function endPointer(e){
+    if(state.pointer && state.pointer.id === e.pointerId) state.pointer = null;
+  }
+
+  function wheel(e){
+    e.preventDefault();
+    const p = pointerPos(e), before = screenToWorld(p);
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    state.view.scale = Math.min(3.5,Math.max(.45,state.view.scale*factor));
+    const after = screenToWorld(p);
+    state.view.x += (after.x-before.x)*state.view.scale;
+    state.view.y += (after.y-before.y)*state.view.scale;
+    draw();
+  }
+
+  function setActive(group,value){
+    for(const btn of document.querySelectorAll(`[data-setting="${group}"] .choice`)){
+      btn.classList.toggle('active',btn.dataset.value === value);
+    }
+  }
+
+  function bind(){
+    document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click',() => {
+      state.tab = btn.dataset.tab;
+      document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b===btn));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===state.tab));
+      requestAnimationFrame(resize);
+    }));
+    document.querySelectorAll('[data-setting] .choice').forEach(btn => btn.addEventListener('click',() => {
+      const group = btn.closest('[data-setting]').dataset.setting;
+      state[group] = btn.dataset.value;
+      setActive(group,state[group]);
+      makeProblem();
+    }));
+    document.getElementById('showSolution').addEventListener('change',e => {state.showSolution = e.target.checked; draw();});
+    document.getElementById('snapToGrid').addEventListener('change',e => {state.snapToGrid = e.target.checked;});
+    document.querySelectorAll('[data-mode]').forEach(btn => btn.addEventListener('click',() => {
+      state.mode = btn.dataset.mode;
+      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===state.mode));
+    }));
+    document.querySelectorAll('.swatch').forEach(btn => btn.addEventListener('click',() => {
+      state.color = btn.dataset.color;
+      document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('active',b===btn));
+      state.mode = 'draw';
+      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===state.mode));
+    }));
+    document.getElementById('undoBtn').addEventListener('click',() => {state.strokes.pop(); draw();});
+    document.getElementById('resetBtn').addEventListener('click',resetCanvas);
+    document.getElementById('refreshBtn').addEventListener('click',makeProblem);
+    canvas.addEventListener('pointerdown',startPointer);
+    canvas.addEventListener('pointermove',movePointer);
+    canvas.addEventListener('pointerup',endPointer);
+    canvas.addEventListener('pointercancel',endPointer);
+    canvas.addEventListener('wheel',wheel,{passive:false});
+    window.addEventListener('resize',resize);
+  }
+
+  function resetCanvas(){
+    state.strokes = [];
+    state.view = {x:0,y:0,scale:1};
+    draw();
+  }
+
+  bind();
+  makeProblem();
+  requestAnimationFrame(resize);
+})();
+</script>
+</body>
+</html>
