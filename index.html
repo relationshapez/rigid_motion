@@ -152,6 +152,8 @@
     strokes:[],
     problemData:null,
     pointer:null,
+    activePointers:new Map(),
+    pinch:null,
     canvasSize:{w:0,h:0}
   };
 
@@ -1199,9 +1201,53 @@
     return {x:e.clientX-r.left,y:e.clientY-r.top};
   }
 
+  function pointerMid(a,b){
+    return {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+  }
+
+  function pointerDistance(a,b){
+    return Math.hypot(a.x-b.x,a.y-b.y);
+  }
+
+  function startPinchIfReady(){
+    if(state.mode !== 'pan' || state.activePointers.size < 2) return false;
+    const ids = Array.from(state.activePointers.keys()).slice(0,2);
+    const pts = ids.map(id => state.activePointers.get(id));
+    const midPt = pointerMid(pts[0],pts[1]);
+    state.pinch = {
+      ids,
+      startDist:Math.max(1,pointerDistance(pts[0],pts[1])),
+      startScale:state.view.scale,
+      startMid:midPt,
+      startWorld:screenToWorld(midPt)
+    };
+    return true;
+  }
+
+  function updatePinch(){
+    if(!state.pinch) return false;
+    const pts = state.pinch.ids.map(id => state.activePointers.get(id));
+    if(pts.some(p => !p)) return false;
+    const midPt = pointerMid(pts[0],pts[1]);
+    const newDist = Math.max(1,pointerDistance(pts[0],pts[1]));
+    state.view.scale = Math.min(3.5,Math.max(.45,state.pinch.startScale * newDist/state.pinch.startDist));
+    state.view.x = midPt.x - state.canvasSize.w/2 - state.pinch.startWorld.x*state.view.scale;
+    state.view.y = midPt.y - state.canvasSize.h/2 - state.pinch.startWorld.y*state.view.scale;
+    draw();
+    return true;
+  }
+
   function startPointer(e){
     canvas.setPointerCapture(e.pointerId);
     const p = pointerPos(e);
+    state.activePointers.set(e.pointerId,p);
+
+    if(startPinchIfReady()){
+      state.pointer = null;
+      draw();
+      return;
+    }
+
     state.pointer = {id:e.pointerId,start:p,last:p,mode:state.mode};
     if(state.mode === 'draw' || state.mode === 'erase'){
       const width = (state.mode === 'erase' ? 10 : 3) / state.view.scale;
@@ -1212,8 +1258,15 @@
   }
 
   function movePointer(e){
-    if(!state.pointer || state.pointer.id !== e.pointerId) return;
     const p = pointerPos(e);
+    if(state.activePointers.has(e.pointerId)) state.activePointers.set(e.pointerId,p);
+
+    if(state.pinch && state.pinch.ids.includes(e.pointerId)){
+      updatePinch();
+      return;
+    }
+
+    if(!state.pointer || state.pointer.id !== e.pointerId) return;
     if(state.pointer.mode === 'pan'){
       state.view.x += p.x-state.pointer.last.x;
       state.view.y += p.y-state.pointer.last.y;
@@ -1235,6 +1288,14 @@
   }
 
   function endPointer(e){
+    state.activePointers.delete(e.pointerId);
+    if(state.pinch && state.pinch.ids.includes(e.pointerId)){
+      state.pinch = null;
+      if(state.activePointers.size === 1 && state.mode === 'pan'){
+        const entry = Array.from(state.activePointers.entries())[0];
+        state.pointer = {id:entry[0],start:entry[1],last:entry[1],mode:'pan'};
+      }
+    }
     if(state.pointer && state.pointer.id === e.pointerId) state.pointer = null;
   }
 
